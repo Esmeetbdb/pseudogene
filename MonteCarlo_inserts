@@ -1,0 +1,39 @@
+def MC_generation(n):
+    '''This function generates n random points on the HG38 genome, the number of random points on the chromosome is proportional to their length. Inserts are generated on 
+    a male genome
+    Input:
+    n (int): number of random points to be generated.
+    Output:
+    Monte_Carlo_Pos.txt (file): text file of the structure chr,pos\n that contains the n randomly generated points.'''
+
+    import random
+    chr_list = ['hg1', 'hg2', 'hg3', 'hg4', 'hg5', 'hg6', 'hg7', 'hg8', 'hg9', 'hg10', 'hg11', 'hg12', 'hg13', 'hg14',
+                'hg15','hg16', 'hg17', 'hg18', 'hg19', 'hg20', 'hg21', 'hg22', 'hgX', 'hgY']
+    chrom_len = [248956422, 242193529, 198295559, 190214555, 181538259, 170805979, 159345973, 145138636, 138394717,
+                 133797422, 135086622, 133275309, 114364328, 107043718, 101991189, 90338345, 83257441, 80373285, 58617616,
+                 64444167, 46709983, 50818468, 156040895, 57227415]  # Chromosome lengths in order hg1-22, hgX, hgY
+
+    rand_chrom = []
+    temp = []
+    total_length = [0, 248956422]
+
+    for i in range(1, len(chrom_len)):
+        total_length.append(sum(chrom_len[0:i + 1]))
+
+    for i in range(n):
+        temp.append(random.randint(1, total_length[-1]))
+
+    for item in temp:
+        for i in range(0, len(chr_list)):
+            if item >= total_length[i] and item < total_length[i + 1]:
+                rand_chrom.append(chr_list[i])
+                break
+            else:
+                continue
+    file = open('Monte_Carlo_Pos.txt', 'w')
+    for chrom in rand_chrom:
+        index = chr_list.index(chrom)
+        file.writelines(chrom + ',' + str(random.randint(1, chrom_len[index])) + '\n')
+
+    file.close()
+    return
