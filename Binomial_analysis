@@ -1,0 +1,206 @@
+def Count_Chrom(data_file, chr_index):
+    '''Function counts the number of times a chromosome is present in a file of insert positions.
+       Input:
+       data_file: name of the data file that contains insert locations.'''
+    count = 0
+    file = open(data_file, 'r')
+
+    chr_list = ['hg1', 'hg2', 'hg3', 'hg4', 'hg5', 'hg6', 'hg7', 'hg8', 'hg9', 'hg10', 'hg11', 'hg12', 'hg13', 'hg14',
+                'hg15', 'hg16', 'hg17', 'hg18', 'hg19', 'hg20', 'hg21', 'hg22', 'hgX', 'hgY']
+
+    chrom_count = {}
+    for line in file:
+        if 'ene' in line:
+            continue
+        elif 'art' in line:
+            continue
+        else:
+            count += 1
+            content = line.strip().split(',')
+            chr = 'hg'+content[chr_index].replace('chr','').replace('hg','').replace('CHR','')
+
+            if chr not in chr_list:
+                print(chr)
+                print(data_file)
+                continue
+
+            if chr not in chrom_count:
+                chrom_count[chr] = 1
+            elif chr in chrom_count:
+                chrom_count[chr] += 1
+            for chrom in chr_list:
+                if chrom not in chrom_count:
+                    chrom_count[chrom] = 0
+    file.close()
+    return chrom_count, count
+    
+def Chromosomal_binomial(MC_file, test_file, output_file, chr_index_Test, chr_index_MC):
+    '''This function tests whether actual insert sites on specific chromosomes are over- or underrepressented compared to
+    random insert sites using a binomial test.
+
+    Input:
+    MC_file: file with randomly generated insertion points.
+    test_file: file with actual insertion points.
+    output_file: desired name of the file that will contain the eventual output.
+
+    Output:
+    file (name as given by user): structure is chromosome,log2(proportion actual inserts/proportion random inserts),
+    proportion actual inserts - proportion random inserts, p value.'''
+
+    from scipy.stats import binom_test
+    import math
+
+    actual_chr_count, actual_count = Count_Chrom(test_file, chr_index_Test)
+    MC_chr_count, total_random = Count_Chrom(MC_file, chr_index_MC)
+
+    actual_chr_count_proportion = {}
+    for chr in actual_chr_count:
+        actual_chr_count_proportion[chr] = actual_chr_count[chr]/int(actual_count)
+
+    MC_chr_count_proportion = {}
+    for chr in MC_chr_count:
+        MC_chr_count_proportion[chr] = MC_chr_count[chr] / int(total_random)
+
+    ana_file = open(output_file, 'w')
+    ana_file.writelines('Chromosome, log value, subtracted value, p-value (not corrected for multiple testing\n')
+    for chr in actual_chr_count:
+        print(chr)
+        k = actual_chr_count[chr]
+        p = MC_chr_count_proportion[chr]
+        sig = binom_test(k, actual_count, p)
+
+        val_div = actual_chr_count_proportion[chr]/MC_chr_count_proportion[chr]
+        if val_div != 0:
+            log_val = math.log(val_div, 2)
+        else:
+            log_val = 'N.A.'
+
+        val_sub = actual_chr_count_proportion[chr]-MC_chr_count_proportion[chr]
+
+        ana_file.writelines(chr + ',' + str(log_val) + ',' + str(val_sub) + ',' + str(sig) + '\n')
+        
+def check_gen_track(tabix_file, location_file, chr_index, pos_index, output):
+    '''The function checks whether insert locations are present within a certain genomic track and stores all locations
+    in that track in a file.
+
+    Input:
+    tabix_file: file appropriate for searching with tabix that contains information about the genome track of interest.
+    location_file: csv with information about the location of insert sites
+    chr_index: the index of the chromosome in the line of the file
+    pos_index: the index of the position of the insert location in each line of the file
+    output: the output file name.
+
+    Output:
+    file (name as given by user): contains the locations of insert points inside of the genome track of interest'''
+    import os
+    loc_file= open(location_file,'r')
+    out_file = open(output, 'w')
+
+    gen_track = []
+
+    for line in loc_file:
+        if 'ene' in line:
+            continue
+        if 'art' in line:
+            continue
+        content = line.strip().split(',')
+
+        chrom = 'chr' + content[chr_index].replace('hg', '').replace('chr', '').replace('CHR', '')
+        start = int(content[pos_index])
+        end = start+1
+        
+        query = '{}:{}-{}'.format(chrom,start,end)
+        os.system('tabix {} {} > {}'.format(tabix_file, query, 'tmp.txt'))
+        #print(query)
+        for info in open('tmp.txt','r'):
+            gen_track.append(info.strip())
+            # print(info)
+            break
+    for item in gen_track:
+        out_file.writelines(item + '\n')
+
+    loc_file.close()
+    out_file.close()
+    return gen_track
+    
+def iterate_track_check(tabix_file, location_file, chr_index, pos_index, output_folder):
+    '''Function that checks several genome tracks of interest.
+    Input:
+    tabix_file: a file that contains paths to all tabix files of the genome tracks of interest.
+    location_file: file that contains all insert sites of interest.
+    chr_index: the index of the chromosome in the line of the file
+    pos_index: the index of the position of the insert location in each line of the file
+    output_folder: name of the folder the output files should be placed in.
+
+    Output:
+    A file for each of the genome tracks of interest that contains the insert positions present in that specific genome track
+    '''
+    for file in open(tabix_file):
+        path = file.strip()
+        content = file.strip().split('/')
+        name = content[-1].split(',')
+        output = output_folder+'/{}_locations.txt'.format(name[0])
+        check_gen_track(path, location_file, chr_index, pos_index, output)
+
+def count_lines(file_name, header = False):
+    '''Counts the number of lines in a file
+    Input:
+    file_name: name of the file of interest
+    header: if file has a header that should not be included in the line count, put header = TRUE'''
+
+    n = 0
+    file = open(file_name)
+    for line in file:
+        if line.strip() == '':
+            continue
+        n += 1
+
+    if header == True:
+        n -= 1
+    file.close()
+    return n
+ 
+ def binomial_dist(n, k, x, y):
+    '''Input: total test data (n), positive test data (k), total random points (x), and positive random points (y)'''
+    from scipy.stats import binom_test
+    p=y/x
+    print(str(k) + ','+ str(n) + ',' + str(p) + '\n')
+    sig = binom_test(k, n, p)
+    value_sub = (k / n) - p
+    value_div = (k/n)/p
+    print(str(k)+','+str(n)+','+str(x)+','+str(y)+'\n')
+
+    return sig, value_sub, value_div
+
+
+def iterate_bin_analysis(datafile_dict, output_file):
+    '''Checks the over- and underrepresentation of insertion sites in several genome tracks compared to random.
+    input:
+    datafile_dict: dictionary that uses the name of the genome track as the key, the values should be a list with the order:
+    all insert sites, insert sites in track of interest, all random sites, random sites in track of interest.
+    output_file: name of the desired output file.'''
+    import math
+    from scipy.stats import binom_test
+    out_file = open(output_file, 'w')
+    #bon = 0
+    for track in datafile_dict.keys():
+        #bon += 1
+        insert_file = datafile_dict[track][0]
+        test_file = datafile_dict[track][1]
+        MC_file = datafile_dict[track][2]
+        MC_insert_file = datafile_dict[track][3]
+
+        n = count_lines(insert_file, header=True)
+        k = count_lines(test_file)
+        x = count_lines(MC_file)
+        y = count_lines(MC_insert_file)
+        print(track)
+        if n == 0:
+            out_file.writelines('No insert sites in the {} track'.format(track))
+            break
+        sig, value_sub, value_div = binomial_dist(n, k, x, y)
+        if k/n != 0 and y/x != 0:
+            log_val = math.log(((k / n) / (y / x)),2)
+        else:
+            log_val = 'N.A.'
+        out_file.writelines(track + ',' + str(sig) + ',' + str(log_val) + ',' + str((k / n) - (y / x)) + '\n')
