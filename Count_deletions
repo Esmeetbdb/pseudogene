@@ -1,0 +1,62 @@
+PRKRA = []
+SKA3 = []
+FBXL5 = []
+MFF = []
+
+for line in open('Individual_pseudogene_info_KG.txt'):
+        content =line.strip().split(',')
+        ind = content[0] #Individual who has a pseudogene
+        gene = content[2] #Pseudogene name
+        if gene == 'PRKRA':
+                PRKRA.append(ind)
+        elif gene == 'SKA3':
+                SKA3.append(ind)
+        elif gene == 'FBXL5':
+                FBXL5.append(ind)
+        elif gene == 'MFF':
+                MFF.append(ind)
+        else:
+                continue
+                
+dic = {'PRKRA':PRKRA,'SKA3':SKA3, 'FBXL5':FBXL5, 'MFF':MFF}
+
+import os
+counts = {}
+for name in dic:
+        counts[name] = []
+        for ind in dic[name]:
+                gene_del = 0
+                gene_high = 0
+
+                path = 'Path_to_VCF_file'
+                #print('grep {} {} | grep del > temp_all.txt'.format(name,path))
+                os.system('grep {} {} | grep del > temp_all.txt'.format(name,path))
+                os.system('grep {} {} | grep del | grep HIGH > temp_high.txt'.format(name,path))
+                for line in open('temp_all.txt'):
+                        gene_del += 1
+                for line in open('temp_high.txt'):
+                        gene_high += 1
+
+                counts[name] += [[gene_del,gene_high]]
+print(counts)
+
+file = open('Average_del_calls.txt','w')
+file.writelines('Gene,av_del_calls,av_high_calls,max_del_call,max_high_call\n')
+
+for gene in counts:
+        total_del = 0
+        total_high = 0
+        max_del = 0
+        max_high = 0
+        n = 0
+        for ind_counts in counts[gene]:
+                n+=1
+                total_del += ind_counts[0]
+                total_high += ind_counts[1]
+                if ind_counts[0] > max_del:
+                        max_del = ind_counts[0]
+                if ind_counts[1] > max_high:
+                        max_high = ind_counts[1]
+        av_del = total_del/n
+        av_high = total_high/n
+        file.writelines(gene+','+str(av_del)+','+str(av_high)+','+str(max_del)+','+str(max_high)+'\n')
